@@ -3,6 +3,8 @@
 .idea
 training_set/
 test_training_set/
+train_audio.npy
+train_labels.npy
 
 # Created by https://www.gitignore.io/api/python
 
