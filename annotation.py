@@ -15,7 +15,7 @@ list_of_files = os.listdir("./test_training_set/")
 num_files = list_of_files.__len__()
 number_of_classes = 88
 training_data = np.zeros((num_files, 16384), dtype=float)
-labels = np.zeros((num_files, 1), int)
+labels = np.zeros((num_files, 1), dtype=int)
 
 # annotate train_labels / write train_audio
 for i in range(0, num_files):
