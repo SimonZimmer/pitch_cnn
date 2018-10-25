@@ -1,82 +1,39 @@
-# TensorFlow and tf.keras
+
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Conv2D, MaxPooling2D
 
 # Helper libraries
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy as sp
-import os
+import pickle
 
-# audio libraries
-from scipy.io import wavfile
+#load data
+pickle_in = open("X.pickle", "rb")
+x = pickle.load(pickle_in)
 
-print(tf.__version__)
+pickle_in = open("Y.pickle", "rb")
+y = pickle.load(pickle_in)
 
-list_of_files = os.listdir("./test_training_set/")
-train_audio = [22050] * list_of_files.__len__()
-train_labels = [0] * list_of_files.__len__()
-number_of_classes = 88
+# normalize
+x = np.abs(x / np.max(x))
 
-# normalize data
-train_audio = np.abs(train_audio / np.max(train_audio));
+model = Sequential()
+model.add(Conv2D((32000, 1), (4, 1)))
+model.add(Activation("relu"))
+model.add(MaxPooling2D(pool_size=(4, 1)))
 
-model = keras.Sequential([
-     keras.layers.Dense(128, activation=tf.nn.relu),
-     keras.layers.Dense(89, activation=tf.nn.softmax)
-])
+model.add(Flatten())
 
-model.compile(optimizer=tf.train.AdamOptimizer(),
-               loss='sparse_categorical_crossentropy',
-               metrics=['accuracy'])
+#model.add(Dense(1))
+#model.add(Activation("sigmoid"))
 
-model.fit(train_audio, np.asarray(train_labels), epochs=5)
+model.compile(loss="crossentropy",
+              optimizer="adam",
+              metrics=["accuracy"])
 
-# predictions = model.predict(test_images)
-#
-# def plot_image(i, predictions_array, true_label, img):
-#     predictions_array, true_label, img = predictions_array[i], true_label[i], img[i]
-#     plt.grid(False)
-#     plt.xticks([])
-#     plt.yticks([])
-#
-#     plt.imshow(img, cmap=plt.cm.binary)
-#
-#     predicted_label = np.argmax(predictions_array)
-#     if predicted_label == true_label:
-#         color = 'blue'
-#     else:
-#         color = 'red'
-#
-#     plt.xlabel("{} {:2.0f}% ({})".format(class_names[predicted_label],
-#                                          100 * np.max(predictions_array),
-#                                          class_names[true_label]),
-#                color=color)
-#
-#
-# def plot_value_array(i, predictions_array, true_label):
-#     predictions_array, true_label = predictions_array[i], true_label[i]
-#     plt.grid(False)
-#     plt.xticks([])
-#     plt.yticks([])
-#     thisplot = plt.bar(range(10), predictions_array, color="#777777")
-#     plt.ylim([0, 1])
-#     predicted_label = np.argmax(predictions_array)
-#
-#     thisplot[predicted_label].set_color('red')
-#     thisplot[true_label].set_color('blue')
-#
-# # Plot the first X test images, their predicted label, and the true label
-# # Color correct predictions in blue, incorrect predictions in red
-# num_rows = 10
-# num_cols = 10
-# num_images = num_rows*num_cols
-# plt.figure(figsize=(2*2*num_cols, 2*num_rows))
-# for i in range(num_images):
-#   plt.subplot(num_rows, 2*num_cols, 2*i+1)
-#   plot_image(i, predictions, test_labels, test_images)
-#   plt.subplot(num_rows, 2*num_cols, 2*i+2)
-#   plot_value_array(i, predictions, test_labels)
-#
-# plt.show()
+model.fit(x, y, batch_size=32, validation_split=0.1)
+
+
+
+
 
