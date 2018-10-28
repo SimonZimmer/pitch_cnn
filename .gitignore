@@ -6,6 +6,11 @@ test_training_set/
 train_audio.npy
 train_labels.npy
 
+### Matlab ###
+.m
+.fig
+.wav
+
 # Created by https://www.gitignore.io/api/python
 
 ### Python ###
