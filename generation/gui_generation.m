@@ -63,12 +63,22 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
+% --- Executes during object creation, after setting all properties.
+function edit2_CreateFcn(hObject, eventdata, handles)
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
 
 function edit1_Callback(hObject, eventdata, handles)
 freq_value = str2double(get(handles.edit1, 'String'));
 handles.freq_value = freq_value;
 guidata(hObject,handles)
 
+% --- Executes on selection change in edit2.
+function edit2_Callback(hObject, eventdata, handles)
+root_gain = str2double(get(handles.edit2, 'String'));
+handles.root_gain = root_gain;
+guidata(hObject,handles)
 
 % --- Executes on button press in pushbutton1.
 function pushbutton1_Callback(hObject, eventdata, handles)
@@ -76,7 +86,7 @@ handles.root = root_note(handles.freq_value, 2^14, 1.0);
 guidata(hObject,handles)
 handles.harmonic_tones = harmonics(handles.current_selection, 10, handles.freq_value, 2^14, handles.t, 0);
 guidata(hObject,handles)
-handles.output_sum = handles.root +  sum(handles.harmonic_tones, 2);
+handles.output_sum = handles.root_gain * handles.root +  sum(handles.harmonic_tones, 2);
 guidata(hObject,handles)
 drawplot(handles)
 
@@ -105,7 +115,7 @@ axes(handles.axes2);
 cla reset 
 x_magnitude = abs(fft(handles.root(:,1)));
 x_magnitude  = x_magnitude(1:end/2+1,:)';
-x_magnitude = x_magnitude / max_ref;
+x_magnitude = handles.root_gain * x_magnitude / max_ref;
 plot(x_magnitude,'b')
 hold on;
 x_magnitude = abs(fft(sum(handles.harmonic_tones, 2)));
