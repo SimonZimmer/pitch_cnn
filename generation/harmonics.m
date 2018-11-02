@@ -1,7 +1,12 @@
-function [output] = harmonics(type, numHarmonics, root_freq, numSamples, t, rand_range)
+function [output] = harmonics(type, numHarmonics, root_freq, rand_range, fs, duration)
 % HARMONICS: computes harmonic frequencies applying different decay curves
+% duration in s
 
-    output = zeros(numSamples, numHarmonics);
+% TODO: implement limit to avoid mirroring
+Ts = 1/fs;
+t = 0 : Ts : duration-Ts;
+
+    output = zeros(duration*fs, numHarmonics);
 
     if strcmpi("exponential",type)
         for k = 1 : numHarmonics
@@ -15,11 +20,15 @@ function [output] = harmonics(type, numHarmonics, root_freq, numSamples, t, rand
 
     if strcmpi("linear",type)
         for k = 1 : numHarmonics
-            factor = 1 - (k / 11)
+            factor = 1 - (k / 11);
             new_freq = root_freq * (k+1);
-            noise = new_freq * (rand_range * rand);
-            output(:,k) = sin(2 * pi * (new_freq + noise) * t);
-            output(:,k) = factor * normalize(output(:,k), 'range', [-1 1]);
+            if new_freq <= fs / 2
+                noise = new_freq * (rand_range * rand);
+                output(:,k) = sin(2 * pi * (new_freq + noise) * t);
+                output(:,k) = factor * normalize(output(:,k), 'range', [-1 1]);
+            else
+                output(:,k) = 0;
+            end
         end
     end
 
