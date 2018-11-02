@@ -112,7 +112,7 @@ guidata(hObject,handles)
 function pushbutton1_Callback(hObject, eventdata, handles)
 handles.root = root_note(handles.freq_value, 2^14, 1.0);
 guidata(hObject,handles)
-handles.harmonic_tones = harmonics(handles.current_selection, 10, handles.freq_value, handles.freq_noise, handles.fs, handles.duration)
+handles.harmonic_tones = harmonics(handles.current_selection, 10, handles.freq_value, handles.freq_noise, handles.fs, handles.duration);
 guidata(hObject,handles)
 handles.output_sum = handles.root_gain * handles.root +  sum(handles.harmonic_tones, 2) + handles.noise;
 %handles.output_sum = normalize(handles.output_sum, 'range');
