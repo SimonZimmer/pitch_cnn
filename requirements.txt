@@ -2,5 +2,5 @@ tensorflow
 keras
 numpy
 matplotlib
-scipy
-sklearn
+os
+pickle

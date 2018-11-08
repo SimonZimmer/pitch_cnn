@@ -123,12 +123,14 @@ model.compile(optimizer=tf.train.AdamOptimizer(),
               loss='categorical_crossentropy',
               metrics=['accuracy'])
 
+# train model
 history = model.fit(x_train, y_train,
                     validation_split=0.2,
                     batch_size=batch_size,
                     epochs=epochs,
                     verbose=1)
 
+# plot results
 plt.plot(history.history['acc'])
 plt.plot(history.history['val_acc'])
 plt.title('model accuracy')
