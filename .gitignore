@@ -7,9 +7,7 @@ train_audio.npy
 train_labels.npy
 
 ### Matlab ###
-.m
 .fig
-.wav
 
 ### pickle ###
 .pickle

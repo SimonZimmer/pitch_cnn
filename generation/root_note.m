@@ -1,4 +1,6 @@
 function[output] = root_note(freq, fs, duration)
+% ROOT_NOTE: computes harmonic frequencies applying different decay curves
+% duration in s
 
     Ts = 1/fs;    
     t = 0 : Ts : duration-Ts;
