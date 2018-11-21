@@ -12,6 +12,11 @@ train_labels.npy
 ### pickle ###
 .pickle
 
+## json ##
+.h5
+.json
+.npy
+
 # Created by https://www.gitignore.io/api/python
 
 ### Python ###

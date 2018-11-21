@@ -1,7 +1,6 @@
 
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import tensorboard
 import numpy as np
 import keras
 import os
@@ -123,16 +122,14 @@ def build_model(size):
 
 
 def train(model, x_train, y_train, epochs, with_plot):
-    early_stopping_monitor = keras.callbacks.EarlyStopping(patience=2)
-
-    tensorboard("logs/run_a")
+    early_stopping_monitor = keras.callbacks.EarlyStopping(patience=4)
 
     history = model.fit(x_train, y_train,
                         validation_split=0.2,
                         batch_size=128,
                         epochs=epochs,
                         verbose=1,
-                        callbacks=[early_stopping_monitor, keras.callbacks.TensorBoard("logs/run_without_res")])
+                        callbacks=[early_stopping_monitor])
 
     if with_plot:
         plt.plot(history.history['acc'])
@@ -202,6 +199,7 @@ def annotate():
 
 
 def save_model(name):
+    print("saving model...")
     model_json = model.to_json()
     with open("%s.json" % name, "w") as json_file:
         json_file.write(model_json)
@@ -211,7 +209,8 @@ def save_model(name):
 
 
 def load_model(name):
-    json_file = open(name, 'r')
+    print("loading model...")
+    json_file = open("%s.json" % name, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
 
@@ -219,15 +218,24 @@ def load_model(name):
         loaded_model_json
     )
 
-    loaded_model.load_weights("model.h5")
+    loaded_model.load_weights("%s.h5" % name)
     print("Loaded model from disk")
 
     return loaded_model
 
 
-def predict(model, x_test):
-    y = model.predict(x_test)
+def predict(model, x):
+    if isinstance(x, str):
+        x = scipy.io.wavfile.read(x)
+        x = x[1]
+        if x.shape[1] == 2:
+            x = x[:, :-1]
+        x = x[0:16384, :]
+
+    x = np.expand_dims(x, axis=0)
+    y = model.predict(x)
     indices = np.argmax(y, axis=1)
+    print("prediction = ")
 
     return indices
 
@@ -248,8 +256,4 @@ size = x_train.shape[1]
 model = build_model(size)
 model.summary()
 train(model, x_train, y_train, epochs, True)
-
-
-
-
 
