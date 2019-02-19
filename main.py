@@ -7,8 +7,8 @@ import os
 import scipy.io.wavfile
 from sklearn.model_selection import train_test_split
 
-start_note = 28
-end_note = 65
+start_note = 1
+end_note = 88
 num_classes = end_note - start_note + 1
 sample_rate = pow(2, 14)
 init_kernel_size = np.int(np.floor(sample_rate / 100))
@@ -63,7 +63,6 @@ def build_model(size):
     x = keras.layers.MaxPool1D(pool_size=4)(x)
 
     # conv2
-    #x = residual_block(x, 48, 48)
     for i in range(3):
         x = keras.layers.Conv1D(filters=48,
                                 kernel_size=3,
@@ -89,10 +88,6 @@ def build_model(size):
                                 padding="same")(x)
         x = batch_and_relu(x)
     x = keras.layers.MaxPool1D(pool_size=4)(x)
-    # x = residual_block(x, 192, 192)
-    # x = residual_block(x, 192, 192)
-    # x = residual_block(x, 192, 192)
-    # x = keras.layers.MaxPool1D(pool_size=4)(x)
 
     # conv5
     for i in range(3):
@@ -101,12 +96,6 @@ def build_model(size):
                                 strides=1,
                                 padding="same")(x)
         x = batch_and_relu(x)
-    # x = residual_block(x, 192, 384)
-    # x = keras.layers.Conv1D(filters=48,
-    # kernel_size=3,
-    # strides=1,
-    # padding="same")(x)
-    # x = batch_and_relu(x)
 
     x = keras.layers.AveragePooling1D()(x)
     x = keras.layers.Flatten()(x)
@@ -256,4 +245,3 @@ size = x_train.shape[1]
 model = build_model(size)
 model.summary()
 train(model, x_train, y_train, epochs, True)
-
