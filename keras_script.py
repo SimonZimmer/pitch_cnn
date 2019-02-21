@@ -7,7 +7,6 @@ import os
 import scipy.io.wavfile
 import re
 
-from sklearn.model_selection import train_test_split
 from custom_classes import DataGenerator
 
 start_note = 0
@@ -139,57 +138,32 @@ def train(model, x_train, y_train, epochs, with_plot):
     return history
 
 
-def load_data(num_classes):
-    print("load data...")
-    x_train = np.load("x_train.npy")
-    y_train = np.load("y_train.npy")
-    x_test = np.load("x_test.npy")
-    y_test = np.load("y_test.npy")
-    y_train = keras.utils.to_categorical(y_train, num_classes)
-    y_test = keras.utils.to_categorical(y_test, num_classes)
-    x_train = np.expand_dims(x_train, axis=2)
-    x_test = np.expand_dims(x_test, axis=2)
-
-    return x_train, y_train, x_test, y_test
-
-
-def annotate():
+def prepare_data():
     print("annotate data...")
 
-    seed = 7
-    np.random.seed(seed)
-
-    list_of_files = os.listdir("./main_training_set/")
+    list_of_files = os.listdir("./data")
     num_files = list_of_files.__len__()
 
-    training_data = np.zeros((num_files, 4*sample_rate), dtype=float)
-    labels = np.zeros((num_files, 1), dtype=int)
+    partition = dict()
+    labels = {}
 
     for i in range(num_files):
-        if list_of_files[i] == '.DS_Store':
-            print('DS_Store item encountered & removed')
-            os.remove(list_of_files[i])
+        if list_of_files[i] != '.DS_Store':
+            current_file = list_of_files[i]
 
-        path = "./main_training_set/" + list_of_files[i]
-        print(path)
-        temp_data = scipy.io.wavfile.read(path)
-        print(len(temp_data[1]))
-        print(len(training_data[1,:]))
-        training_data[i, :] = temp_data[1]
+            if i < 3500:
+                partition.setdefault('train', [])
+                partition['train'].append(current_file)
+            else:
+                partition.setdefault('validation', [])
+                partition['validation'].append(current_file)
 
-        # use regex to get pitch info from filename
-        pitch_regex = re.compile(r'(?<=-)(\d\d\d)(?=-)')
-        labels[i] = pitch_regex.findall(list_of_files[i])
+            # use regex to get pitch info from filename
+            pitch_regex = re.compile(r'(?<=-)(\d\d\d)(?=-)')
+            current_label = int(pitch_regex.findall(current_file)[0])
+            labels[current_file] = current_label
 
-    x_train, x_test, y_train, y_test = train_test_split(training_data,
-                                                        labels,
-                                                        test_size=0.2,
-                                                        random_state=seed)
-    print("writing data to disk...")
-    np.save("x_train.npy", x_train)
-    np.save("y_train.npy", y_train)
-    np.save("x_test.npy", x_test)
-    np.save("y_test.npy", y_test)
+    return partition, labels
 
 
 def save_model(name):
@@ -243,11 +217,34 @@ def evaluate(model):
     print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
     cvscores.append(scores[1] * 100)
 
+#_______________________________________________________________________________________________________________________
 
-# execution:
-annotate()
-x_train, y_train, x_test, y_test = load_data(num_classes)
-size = x_train.shape[1]
-model = build_model(size)
+# Parameters
+params = {'dim': (64000,1),
+          'batch_size': batch_size,
+          'n_classes': num_classes,
+          'n_channels': 1,
+          'shuffle': True}
+
+# Datasets
+partition, labels = prepare_data()
+
+print('train data = ' + str(partition['train']))
+print('val data = ' + str(partition['validation']))
+
+# Generators
+training_generator = DataGenerator(partition['train'], labels, **params)
+validation_generator = DataGenerator(partition['validation'], labels, **params)
+
+# Design model
+size = len(partition)
+model = build_model(64000)
 model.summary()
-train(model, x_train, y_train, epochs, True)
+
+
+# Train model on dataset
+model.fit_generator(generator=training_generator,
+                    validation_data=validation_generator,
+                    use_multiprocessing=True,
+                    workers=6,
+                    epochs=epochs)

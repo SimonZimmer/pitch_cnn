@@ -5,6 +5,7 @@ research_material/
 .wav
 .idea
 training_set/
+data/
 test_training_set/
 main_training_set/
 train_labels.npy
@@ -29,6 +30,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.npy
+venv/
 
 # C extensions
 *.so
