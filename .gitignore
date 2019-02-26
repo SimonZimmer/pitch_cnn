@@ -11,6 +11,8 @@ main_training_set/
 train_labels.npy
 piano_test_set/
 generation/
+logs/
+data/
 
 ### Matlab ###
 .fig
