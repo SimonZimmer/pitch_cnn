@@ -1,6 +1,5 @@
 import numpy as np
 import keras
-import scipy.io.wavfile
 import librosa.core
 import librosa.util
 

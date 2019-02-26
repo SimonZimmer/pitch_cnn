@@ -5,14 +5,16 @@ import numpy as np
 import keras
 import os
 import scipy.io.wavfile
-from sklearn.model_selection import train_test_split
+import re
 
-start_note = 1
-end_note = 88
+from custom_classes import DataGenerator
+
+start_note = 0
+end_note = 127
 num_classes = end_note - start_note + 1
-sample_rate = pow(2, 14)
+sample_rate = 16000
 init_kernel_size = np.int(np.floor(sample_rate / 100))
-epochs = 100
+epochs = 1000
 batch_size = 128
 
 
@@ -123,68 +125,45 @@ def train(model, x_train, y_train, epochs, with_plot):
     if with_plot:
         plt.plot(history.history['acc'])
         plt.title('model accuracy')
-        plt.xlabel('accuray')
-        plt.ylabel('epochs')
+        plt.xlabel('epochs')
+        plt.ylabel('accuracy')
         plt.show()
 
         plt.plot(history.history['loss'])
         plt.title('model loss')
-        plt.xlabel('loss')
-        plt.ylabel('epochs')
+        plt.xlabel('epochs')
+        plt.ylabel('loss')
         plt.show()
 
     return history
 
 
-def load_data(num_classes):
-    print("load data...")
-    x_train = np.load("x_train.npy")
-    y_train = np.load("y_train.npy")
-    x_test = np.load("x_test.npy")
-    y_test = np.load("y_test.npy")
-    y_train = keras.utils.to_categorical(y_train, num_classes)
-    y_test = keras.utils.to_categorical(y_test, num_classes)
-    x_train = np.expand_dims(x_train, axis=2)
-    x_test = np.expand_dims(x_test, axis=2)
-
-    return x_train, y_train, x_test, y_test
-
-
-def annotate():
+def prepare_data():
     print("annotate data...")
 
-    seed = 7
-    np.random.seed(seed)
-
-    list_of_files = os.listdir("./main_training_set/")
+    list_of_files = os.listdir("./data")
     num_files = list_of_files.__len__()
 
-    training_data = np.zeros((num_files, 16384), dtype=float)
-    labels = np.zeros((num_files, 1), dtype=int)
+    partition = dict()
+    labels = {}
 
     for i in range(num_files):
+        if list_of_files[i] != '.DS_Store':
+            current_file = list_of_files[i]
 
-        if list_of_files[i] == '.DS_Store':
-            print('DS_Store item encountered & removed')
-            os.remove(list_of_files[i])
+            if i < 3500:
+                partition.setdefault('train', [])
+                partition['train'].append(current_file)
+            else:
+                partition.setdefault('validation', [])
+                partition['validation'].append(current_file)
 
-        path = "./main_training_set/" + list_of_files[i]
-        temp_data = scipy.io.wavfile.read(path)
-        training_data[i, :] = temp_data[1]
+            # use regex to get pitch info from filename
+            pitch_regex = re.compile(r'(?<=-)(\d\d\d)(?=-)')
+            current_label = int(pitch_regex.findall(current_file)[0])
+            labels[current_file] = current_label
 
-        for rootnote in range(num_classes):
-            if list_of_files[i].startswith("sinus" + str(rootnote + start_note) + "_"):
-                labels[i] = rootnote
-
-    x_train, x_test, y_train, y_test = train_test_split(training_data,
-                                                        labels,
-                                                        test_size=0.2,
-                                                        random_state=seed)
-    print("writing data to disk...")
-    np.save("/Users/simonzimmermann/dev/pitch_cnn/x_train.npy", x_train)
-    np.save("/Users/simonzimmermann/dev/pitch_cnn/y_train.npy", y_train)
-    np.save("/Users/simonzimmermann/dev/pitch_cnn/x_test.npy", x_test)
-    np.save("/Users/simonzimmermann/dev/pitch_cnn/y_test.npy", y_test)
+    return partition, labels
 
 
 def save_model(name):
@@ -219,7 +198,7 @@ def predict(model, x):
         x = x[1]
         if x.shape[1] == 2:
             x = x[:, :-1]
-        x = x[0:16384, :]
+        x = x[0:sample_rate, :]
 
     x = np.expand_dims(x, axis=0)
     y = model.predict(x)
@@ -238,10 +217,34 @@ def evaluate(model):
     print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
     cvscores.append(scores[1] * 100)
 
+#_______________________________________________________________________________________________________________________
 
-# execution:
-x_train, y_train, x_test, y_test = load_data(num_classes)
-size = x_train.shape[1]
-model = build_model(size)
+# Parameters
+params = {'dim': (64000,1),
+          'batch_size': batch_size,
+          'n_classes': num_classes,
+          'n_channels': 1,
+          'shuffle': True}
+
+# Datasets
+partition, labels = prepare_data()
+
+print('train data = ' + str(partition['train']))
+print('val data = ' + str(partition['validation']))
+
+# Generators
+training_generator = DataGenerator(partition['train'], labels, **params)
+validation_generator = DataGenerator(partition['validation'], labels, **params)
+
+# Design model
+size = len(partition)
+model = build_model(64000)
 model.summary()
-train(model, x_train, y_train, epochs, True)
+
+
+# Train model on dataset
+model.fit_generator(generator=training_generator,
+                    validation_data=validation_generator,
+                    use_multiprocessing=True,
+                    workers=6,
+                    epochs=epochs)
