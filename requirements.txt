@@ -6,3 +6,4 @@ pydot
 graphviz
 sklearn
 scipy
+librosa

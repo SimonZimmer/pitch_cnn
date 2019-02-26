@@ -3,46 +3,52 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 import keras
+from keras.layers import BatchNormalization
+from keras.layers.core import Activation
 import os
-import scipy.io.wavfile
+import librosa
 import re
+
+from time import time
+from tensorflow.python.keras.callbacks import TensorBoard
 
 from custom_classes import DataGenerator
 
 start_note = 0
 end_note = 127
 num_classes = end_note - start_note + 1
-sample_rate = 16000
+sample_rate = 22050
 init_kernel_size = np.int(np.floor(sample_rate / 100))
 epochs = 1000
 batch_size = 128
 
+def conv_block(feat_maps_out, prev):
+    # Specifying the axis and mode allows for later merging
+    prev = BatchNormalization(axis=1)(prev)
+    prev = Activation('relu')(prev)
+    prev = keras.layers.Conv1D(feat_maps_out, 3, padding='same')(prev)
+    # Specifying the axis and mode allows for later merging
+    prev = BatchNormalization(axis=1)(prev)
+    prev = Activation('relu')(prev)
+    prev = keras.layers.Conv1D(feat_maps_out, 3, padding='same')(prev)
+    return prev
 
-def residual_block(y, nb_channels_in, nb_channels_out):
 
-    shortcut = y
+def skip_block(feat_maps_in, feat_maps_out, prev):
+    if feat_maps_in != feat_maps_out:
+        # add in a 1x1 convolution on shortcuts that map between an uneven amount of channels
+        prev = keras.layers.Conv1D(feat_maps_out, 1, padding='same')(prev)
+    return prev
 
-    y = keras.layers.Conv1D(nb_channels_in,
-                            kernel_size=3,
-                            strides=1,
-                            padding='same')(y)
-    y = batch_and_relu(y)
 
-    y = keras.layers.Conv1D(nb_channels_out,
-                            kernel_size=3,
-                            strides=1,
-                            padding='same')(y)
+def Residual(feat_maps_in, feat_maps_out, prev_layer):
 
-    # batch normalization is employed after aggregating the transformations and before adding to the shortcut
-    y = keras.layers.BatchNormalization()(y)
+    skip = skip_block(feat_maps_in, feat_maps_out, prev_layer)
+    conv = conv_block(feat_maps_out, prev_layer)
 
-    y = keras.layers.add([shortcut, y])
+    print('Residual block mapping '+str(feat_maps_in)+' channels to '+str(feat_maps_out)+' channels built')
 
-    # relu is performed right after each batch normalization,
-    # expect for the output of the block where relu is performed after the adding to the shortcut
-    y = keras.layers.ReLU()(y)
-
-    return y
+    return keras.layers.Add()([skip, conv]) # the residual connection
 
 
 def batch_and_relu(x):
@@ -57,53 +63,33 @@ def build_model(size):
     size = (size, 1)
     audio = keras.layers.Input(size)
 
-    # conv1
-    x = keras.layers.Conv1D(filters=48,
-                            kernel_size=init_kernel_size,
-                            strides=4)(audio)
-    x = batch_and_relu(x)
-    x = keras.layers.MaxPool1D(pool_size=4)(x)
+    y = keras.layers.Conv1D(48, 80, strides=4, padding='same')(audio)
+    y = keras.layers.MaxPool1D(pool_size=4, strides=1, padding='same')(y)
+    y = Residual(48, 48, y)
+    y = Residual(48, 48, y)
+    y = Residual(48, 96, y)
+    y = keras.layers.MaxPool1D(pool_size=4, strides=1, padding='same')(y)
+    y = Residual(48, 96, y)
+    y = Residual(96, 96, y)
+    y = Residual(96, 96, y)
+    y = Residual(96, 96, y)
+    y = keras.layers.MaxPool1D(pool_size=4, strides=1, padding='same')(y)
+    y = Residual(96, 192, y)
+    y = Residual(192, 192, y)
+    y = Residual(192, 192, y)
+    y = Residual(192, 192, y)
+    y = Residual(192, 192, y)
+    y = Residual(192, 192, y)
+    y = keras.layers.MaxPool1D(pool_size=4, strides=1, padding='same')(y)
+    y = Residual(192, 384, y)
+    y = Residual(384, 384, y)
+    y = Residual(384, 384, y)
 
-    # conv2
-    for i in range(3):
-        x = keras.layers.Conv1D(filters=48,
-                                kernel_size=3,
-                                strides=1,
-                                padding="same")(x)
-        x = batch_and_relu(x)
-    x = keras.layers.MaxPool1D(pool_size=4)(x)
+    y = keras.layers.AveragePooling1D()(y)
+    y = keras.layers.Flatten()(y)
+    y = keras.layers.Dense(num_classes, activation='softmax')(y)
 
-    # conv3
-    for i in range(4):
-        x = keras.layers.Conv1D(filters=96,
-                                kernel_size=3,
-                                strides=1,
-                                padding="same")(x)
-        x = batch_and_relu(x)
-    x = keras.layers.MaxPool1D(pool_size=4)(x)
-
-    # conv4
-    for i in range(6):
-        x = keras.layers.Conv1D(filters=192,
-                                kernel_size=3,
-                                strides=1,
-                                padding="same")(x)
-        x = batch_and_relu(x)
-    x = keras.layers.MaxPool1D(pool_size=4)(x)
-
-    # conv5
-    for i in range(3):
-        x = keras.layers.Conv1D(filters=384,
-                                kernel_size=3,
-                                strides=1,
-                                padding="same")(x)
-        x = batch_and_relu(x)
-
-    x = keras.layers.AveragePooling1D()(x)
-    x = keras.layers.Flatten()(x)
-    x = keras.layers.Dense(num_classes, activation='softmax')(x)
-
-    model = keras.Model(inputs=audio, outputs=x)
+    model = keras.Model(inputs=audio, outputs=y)
 
     model.compile(optimizer=tf.train.AdamOptimizer(),
                        loss='categorical_crossentropy',
@@ -112,56 +98,31 @@ def build_model(size):
     return model
 
 
-def train(model, x_train, y_train, epochs, with_plot):
-    early_stopping_monitor = keras.callbacks.EarlyStopping(patience=4)
-
-    history = model.fit(x_train, y_train,
-                        validation_split=0.2,
-                        batch_size=128,
-                        epochs=epochs,
-                        verbose=1,
-                        callbacks=[early_stopping_monitor])
-
-    if with_plot:
-        plt.plot(history.history['acc'])
-        plt.title('model accuracy')
-        plt.xlabel('epochs')
-        plt.ylabel('accuracy')
-        plt.show()
-
-        plt.plot(history.history['loss'])
-        plt.title('model loss')
-        plt.xlabel('epochs')
-        plt.ylabel('loss')
-        plt.show()
-
-    return history
-
-
 def prepare_data():
     print("annotate data...")
-
-    list_of_files = os.listdir("./data")
-    num_files = list_of_files.__len__()
 
     partition = dict()
     labels = {}
 
-    for i in range(num_files):
-        if list_of_files[i] != '.DS_Store':
-            current_file = list_of_files[i]
+    data_type = 'training'
+    for i in range (2):
+        list_of_files = os.listdir('./data/' + data_type + '/')
 
-            if i < 3500:
-                partition.setdefault('train', [])
-                partition['train'].append(current_file)
-            else:
-                partition.setdefault('validation', [])
-                partition['validation'].append(current_file)
+        num_files_train = list_of_files.__len__()
 
-            # use regex to get pitch info from filename
-            pitch_regex = re.compile(r'(?<=-)(\d\d\d)(?=-)')
-            current_label = int(pitch_regex.findall(current_file)[0])
-            labels[current_file] = current_label
+        for i in range(num_files_train):
+            if list_of_files[i] != '.DS_Store':
+                current_file = list_of_files[i]
+
+                partition.setdefault(data_type, [])
+                partition[data_type].append(current_file)
+
+                # use regex to get pitch info from filename
+                pitch_regex = re.compile(r'(?<=-)(\d\d\d)(?=-)')
+                current_label = int(pitch_regex.findall(current_file)[0])
+
+                labels[current_file] = current_label
+        data_type = 'validation'
 
     return partition, labels
 
@@ -192,10 +153,10 @@ def load_model(name):
     return loaded_model
 
 
-def predict(model, x):
-    if isinstance(x, str):
-        x = scipy.io.wavfile.read(x)
-        x = x[1]
+def predict(model, x_path):
+    if isinstance(x_path, str):
+        x, sr = librosa.core.load(x_path)
+        x = x[0]
         if x.shape[1] == 2:
             x = x[:, :-1]
         x = x[0:sample_rate, :]
@@ -207,44 +168,46 @@ def predict(model, x):
 
     return indices
 
-
-def evaluate(model):
-    model.compile(loss='binary_crossentropy',
-                        optimizer='rmsprop',
-                        metrics=['accuracy'])
-    cvscores = []
-    scores = model.evaluate(x_test, y_test, verbose=0)
-    print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
-    cvscores.append(scores[1] * 100)
-
 #_______________________________________________________________________________________________________________________
 
 # Parameters
-params = {'dim': (64000,1),
-          'batch_size': batch_size,
+params = {'batch_size': batch_size,
+          'dim': (sample_rate,1),
           'n_classes': num_classes,
-          'n_channels': 1,
           'shuffle': True}
 
 # Datasets
 partition, labels = prepare_data()
 
-print('train data = ' + str(partition['train']))
-print('val data = ' + str(partition['validation']))
-
 # Generators
-training_generator = DataGenerator(partition['train'], labels, **params)
-validation_generator = DataGenerator(partition['validation'], labels, **params)
+training_generator = DataGenerator(partition['training'], labels, 'training', **params)
+validation_generator = DataGenerator(partition['validation'], labels, 'validation', **params)
 
 # Design model
 size = len(partition)
-model = build_model(64000)
+model = build_model(sample_rate)
 model.summary()
 
+early_stopping_monitor = keras.callbacks.EarlyStopping(patience=4)
+tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
 
 # Train model on dataset
-model.fit_generator(generator=training_generator,
-                    validation_data=validation_generator,
-                    use_multiprocessing=True,
-                    workers=6,
-                    epochs=epochs)
+history = model.fit_generator(generator=training_generator,
+                              validation_data=validation_generator,
+                              use_multiprocessing=True,
+                              epochs=epochs,
+                              callbacks=[early_stopping_monitor, tensorboard],
+                              workers=6)
+
+
+plt.plot(history.history['acc'])
+plt.title('model accuracy')
+plt.xlabel('epochs')
+plt.ylabel('accuracy')
+plt.show()
+
+plt.plot(history.history['loss'])
+plt.title('model loss')
+plt.xlabel('epochs')
+plt.ylabel('loss')
+plt.show()

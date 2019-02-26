@@ -5,7 +5,7 @@ import librosa.util
 
 class DataGenerator(keras.utils.Sequence):
     """Generates data for a Keras model"""
-    def __init__(self, list_ids, labels, data_type, batch_size=128, dim=(22050, 1), n_channels=1,
+    def __init__(self, list_ids, labels, data_type, batch_size=128, dim=(22050, 1),
                  n_classes=127, shuffle=True):
         """Initialization"""
         self.dim = dim
@@ -13,7 +13,6 @@ class DataGenerator(keras.utils.Sequence):
         self.labels = labels
         self.data_type = data_type
         self.list_ids = list_ids
-        self.n_channels = n_channels
         self.n_classes = n_classes
         self.shuffle = shuffle
         self.on_epoch_end()
@@ -42,9 +41,8 @@ class DataGenerator(keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, list_ids_temp):
-        """Generates data containing batch_size samples""" # X : (n_samples, *dim, n_channels)
+        """Generates data containing batch_size samples""" # X : (n_samples, *dim)
         # Initialization
-        # maybe channels adds additional dimension
         x_data = np.empty((self.batch_size, *self.dim))
         y_data = np.empty(self.batch_size, dtype=int)
 
