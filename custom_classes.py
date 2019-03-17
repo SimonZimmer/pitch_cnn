@@ -52,9 +52,9 @@ class DataGenerator(keras.utils.Sequence):
         for i, id in enumerate(list_ids_temp):
             # Store sample
             if self.data_type == 'training':
-                path = 'data/training/' + id
+                path = 'E:/datasets/synthetic_note_dataset/training/' + id
             if self.data_type == 'validation':
-                path = 'data/validation/' + id
+                path = 'E:/datasets/synthetic_note_dataset/validation/' + id
 
             audio_data = librosa.core.load(path)
             audio_data = audio_data[0]
